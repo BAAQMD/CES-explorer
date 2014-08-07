@@ -22,17 +22,20 @@ shinyServer(function(input, output, session) {
   session$onFlushed(once=TRUE, function() {
     paintObs <- observe({
       withProgress(session, {
-        setProgress(message = "Calculating, please wait",
-                    detail = "Computing scores ...")
+        setProgress(message = "Updating, please wait",
+                    detail = "Calculating scores ...")
+
         dt <- .impacted_scores()
         i <- dt$FIPS
+
+        x <- unname(unlist(poly_x[i]))
+        y <- unname(unlist(poly_y[i]))
+
         setProgress(detail = "Rendering map ...")
         map$clearShapes()
         # Bug in Shiny causes this to error out when user closes browser
         # before we get here
         try({
-          x <- unname(unlist(poly_x[i]))
-          y <-unname(unlist(poly_y[i]))
           ids <- unlist(poly_id[i])
           col <- color_ramp(dt$Range)
           map$addPolygon(y, x,
