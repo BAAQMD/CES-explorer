@@ -37,7 +37,6 @@ scale_x_score <- function (...) scale_x_continuous(..., limits=c(0, 10), expand=
 scale_y_score <- function (...) scale_y_continuous(..., limits=c(0, 10), expand=c(0, 0))
 
 region_colors <- c(`Bay Area`="#009E73", `South Coast`="#0072B2", `San Joaquin`="#D55E00", `Other`="#999999")
-
 region_tbl <- do.call(rbind, lapply(names(CA_regions), function (x) as.tbl(data.frame(FIPS = as.character(CA_regions[[x]]$FIPS), Region = x))))
 
 with_region <- function (.data) {
