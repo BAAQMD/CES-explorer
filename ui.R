@@ -25,6 +25,8 @@ shinyUI(
       "Interactive map",
       div(class="outer",
 
+          progressInit(),
+
           tags$head(
             includeCSS("styles.css")#,
             #includeScript("gomap.js")

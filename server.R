@@ -21,26 +21,31 @@ shinyServer(function(input, output, session) {
   # before the map is created.
   session$onFlushed(once=TRUE, function() {
     paintObs <- observe({
-      dt <- .impacted_scores()
-      i <- dt$FIPS
-      map$clearShapes()
-      # Bug in Shiny causes this to error out when user closes browser
-      # before we get here
-      try({
-        x <- unname(unlist(poly_x[i]))
-        y <-unname(unlist(poly_y[i]))
-        ids <- unlist(poly_id[i])
-        col <- color_ramp(dt$Range)
-        map$addPolygon(y, x,
-                       layerId = seq(1, length(na.omit(x))), #seq_along(ids),
-                       options = lapply(col, function(x) list(fillColor = x)),
-                       defaultOptions = defaultOptions)
+      withProgress(session, {
+        setProgress(message = "Calculating, please wait",
+                    detail = "Computing scores ...")
+        dt <- .impacted_scores()
+        i <- dt$FIPS
+        setProgress(detail = "Rendering map ...")
+        map$clearShapes()
+        # Bug in Shiny causes this to error out when user closes browser
+        # before we get here
+        try({
+          x <- unname(unlist(poly_x[i]))
+          y <-unname(unlist(poly_y[i]))
+          ids <- unlist(poly_id[i])
+          col <- color_ramp(dt$Range)
+          map$addPolygon(y, x,
+                         layerId = seq(1, length(na.omit(x))), #seq_along(ids),
+                         options = lapply(col, function(x) list(fillColor = x)),
+                         defaultOptions = defaultOptions)
+        })
       })
     })
-
     # TIL this is necessary in order to prevent the observer from
     # attempting to write to the websocket after the session is gone.
     session$onSessionEnded(paintObs$suspend)
+
   })
 
   .region_boundary <- reactive({
@@ -66,73 +71,63 @@ shinyServer(function(input, output, session) {
     c(Age=input$Age, Asthma=input$Asthma, LBW=input$LBW, Edu=input$Edu, LingIso=input$LingIso, Poverty=input$Poverty, Unemp=input$Unemp)
   })
 
-  .group_tbl <- reactive({
-    as.tbl(data.frame(Variable = CES2_VARS)) %>%
-      mutate(Group = factor(ifelse(Variable %in% CES2_POPCHAR_VARS, "PopChar", "Pollution")))
-  })
-
   .weight_tbl <- reactive({
     w <- c(.pollution_weights(), .popchar_weights())
     as.tbl(data.frame(Variable = names(w), Weight = w))
   })
 
-  .meta_tbl <- reactive({
-    inner_join(.group_tbl(), .weight_tbl(), by = "Variable")
-  })
-
-  .pctl_tbl <- reactive({
-    CES2_data %>% mutate_each(funs(pctl), -FIPS)
-  })
+  #.meta_tbl <- reactive({
+  #  inner_join(group_tbl, .weight_tbl(), by = "Variable")
+  #})
 
   .subscore_tbl <- reactive({
     if (length(.selected_variables()) == 0) {
       as.tbl(data.frame(FIPS=character(0), Pollution=numeric(0), PopChar=numeric(0)))
     } else {
       min_obs <- Reduce(min, c(4, length(input$pollution_vars), length(input$popchar_vars)))
-    .pctl_tbl() %>%
-      gather(Variable, Pctl, -FIPS) %>%
-      inner_join(.meta_tbl(), by = "Variable") %>%
-      filter(Variable %in% .selected_variables()) %>%
-      group_by(FIPS, Group) %>%
-      compute_CES2_subscores(min_obs = min_obs) %>%
-      spread(Group, Subscore) %>%
-      arrange(desc(FIPS))
+      CES2_tbl %>%
+        inner_join(.weight_tbl(), by = "Variable") %>%
+        filter(Variable %in% .selected_variables()) %>%
+        group_by(FIPS, Group) %>%
+        compute_CES2_subscores(min_obs = min_obs) %>%
+        spread(Group, Subscore) %>%
+        arrange(desc(FIPS))
     }
   })
 
   .score_tbl <- reactive({
-    if (input$method == "CES 2.0") {
-      subscores <- .subscore_tbl()
+      if (input$method == "CES 2.0") {
+        subscores <- .subscore_tbl()
 
-      if (is.null(subscores$PopChar)) {
-        subscores$PopChar <- 1
+        if (is.null(subscores$PopChar)) {
+          subscores$PopChar <- 1
+        } else {
+          if (is.null(subscores$Pollution))
+            subscores$Pollution <- 1
+        }
+        scores <- subscores %>% compute_CES2_scores()
       } else {
-        if (is.null(subscores$Pollution))
-          subscores$Pollution <- 1
+        cut_quantile <- function (x, ...) {
+          q <- quantile(x, seq(0, 1, len=21))
+          cut(x, breaks = q, labels = names(q)[-1])
+        }
+        summarise_rank_product <- function (.data) {
+          .data %>%
+            filter(!is.na(Value)) %>%
+            group_by(Variable) %>%
+            mutate(Rank = rank(-Value) + 1, Frac = Rank / n()) %>%
+            ungroup() %>%
+            group_by(FIPS) %>%
+            summarise(Score = sum(-log(Frac))) %>%
+            mutate(Percentile = 100 * normalize(rank(Score)),
+                   Range = cut_quantile(Score, n=20))
+        }
+        scores <- CES2_data %>%
+          gather(Variable, Value, -FIPS) %>%
+          filter(Variable %in% .selected_variables()) %>%
+          summarise_rank_product()
       }
-      scores <- subscores %>% compute_CES2_scores()
-    } else {
-      cut_quantile <- function (x, ...) {
-        q <- quantile(x, seq(0, 1, len=21))
-        cut(x, breaks = q, labels = names(q)[-1])
-      }
-      summarise_rank_product <- function (.data) {
-        .data %>%
-          filter(!is.na(Value)) %>%
-          group_by(Variable) %>%
-          mutate(Rank = rank(-Value) + 1, Frac = Rank / n()) %>%
-          ungroup() %>%
-          group_by(FIPS) %>%
-          summarise(Score = sum(-log(Frac))) %>%
-          mutate(Percentile = 100 * normalize(rank(Score)),
-                 Range = cut_quantile(Score, n=20))
-      }
-      scores <- CES2_data %>%
-        gather(Variable, Value, -FIPS) %>%
-        filter(Variable %in% .selected_variables()) %>%
-        summarise_rank_product()
-    }
-    scores %>% arrange(desc(Score)) %>% with_region()
+      scores %>% arrange(desc(Score)) %>% with_region()
   })
 
   .impacted_percentile <- reactive({
@@ -199,9 +194,8 @@ shinyServer(function(input, output, session) {
   output$scatterplot <- renderPlot(show(.scatterplot()))
   output$barchart <- renderPlot(show(.barchart()))
 
-  output$meta_tbl <- renderTable(.meta_tbl())
-  output$pctl_tbl <- renderDataTable(.pctl_tbl(), options = list(bSortClasses=TRUE, iDisplayLength=10))
-  output$data_tbl <- renderDataTable(inner_join(.pctl_tbl(), .score_tbl(), by = "FIPS"), options = list(bSortClasses=TRUE, iDisplayLength=10))
+  output$pctl_tbl <- renderDataTable(pctl_tbl, options = list(bSortClasses=TRUE, iDisplayLength=10))
+  output$data_tbl <- renderDataTable(inner_join(pctl_tbl, .score_tbl(), by = "FIPS"), options = list(bSortClasses=TRUE, iDisplayLength=10))
 
   output$subscore_tbl <- renderDataTable(.subscore_tbl())
 })

@@ -1,3 +1,10 @@
+ .shiny-progress {
+   top: 50% !important;
+   right: 50% !important;
+   margin-top: -10px;
+   margin-right: -150px;
+ }
+
 input[type="number"] {
   max-width: 80%;
 }

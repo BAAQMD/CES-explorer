@@ -62,3 +62,12 @@ color_ramp <- function (x, pal = "RdYlGn") {
   palette <- colorRampPalette(rev(brewer.pal(9, pal)))
   palette(n = 1 + length(levels(x)))[x]
 }
+
+pctl_tbl <- CES2_data %>% mutate_each(funs(pctl), -FIPS)
+
+group_tbl <- as.tbl(data.frame(Variable = CES2_VARS)) %>%
+    mutate(Group = factor(ifelse(Variable %in% CES2_POPCHAR_VARS, "PopChar", "Pollution")))
+
+CES2_tbl <- pctl_tbl %>%
+  gather(Variable, Pctl, -FIPS) %>%
+  inner_join(group_tbl, by = "Variable")
