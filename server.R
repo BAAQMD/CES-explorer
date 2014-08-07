@@ -7,52 +7,6 @@ suppressPackageStartupMessages({
   library(RColorBrewer)
 })
 
-data(CES2, package = "CalEnviroScreen")
-data(CES2_metadata, package = "CalEnviroScreen")
-data(California, package = "CalEnviroScreen")
-
-CES2_VARS <- c(CES2_POLLUTION_VARS, CES2_POPCHAR_VARS)
-
-REGION_COLORS <- c(`Bay Area` = "#009E73", `South Coast` = "#0072B2",
-                   `San Joaquin` = "#D55E00", `Other` = "#999999")
-
-region_tbl <- do.call(rbind, lapply(names(CA_regions), function (x) as.tbl(data.frame(FIPS = as.character(CA_regions[[x]]$FIPS), Region = x))))
-with_region <- function (.data) .data %>% inner_join(region_tbl, by = "FIPS")
-
-library(rgeos)
-tract_boundaries <- geometry(CA_tracts)
-
-#theme_set(theme_bw())
-#theme_update(
-#  plot.title = element_text(size=rel(1), face="bold", vjust=1.75),
-#  axis.title.x = element_text(size=rel(0.9), lineheight=1.1, face="bold", vjust=-0.5),
-#  axis.title.y = element_text(size=rel(0.9), lineheight=1.1, face="bold", angle=90)
-#)
-
-options(digits=3)
-
-scale_color_regions <- function (...) scale_color_manual("Region", values=region_colors)
-scale_fill_regions <- function (...) scale_fill_manual("Region", values=region_colors)
-scale_x_score <- function (...) scale_x_continuous(..., limits=c(0, 10), expand=c(0, 0))
-scale_y_score <- function (...) scale_y_continuous(..., limits=c(0, 10), expand=c(0, 0))
-
-region_colors <- c(`Bay Area`="#009E73", `South Coast`="#0072B2", `San Joaquin`="#D55E00", `Other`="#999999")
-
-region_tbl <- do.call(rbind, lapply(names(CA_regions), function (x) as.tbl(data.frame(FIPS = as.character(CA_regions[[x]]$FIPS), Region = x))))
-
-with_region <- function (.data) {
-  .data %>% inner_join(region_tbl, by = "FIPS")
-}
-
-xapply <- function (...) {
-  unlist(sapply(..., simplify = FALSE))
-}
-
-coord_getter <- function (j) {
-  f <- function (x) c(x@coords[, j, drop=TRUE], NA)
-  function (obj) xapply(obj@Polygons, f)
-}
-
 ###############################################################################
 # Define server logic
 ###############################################################################
@@ -60,44 +14,28 @@ coord_getter <- function (j) {
 shinyServer(function(input, output, session) {
 
   output$map <- reactive(TRUE)
-
   map <- createLeafletMap(session, "map")
-
-  color_ramp <- function (x, pal = "RdYlGn") {
-    palette <- colorRampPalette(rev(brewer.pal(9, pal)))
-    palette(n = 1 + length(levels(x)))[x]
-  }
 
   # session$onFlushed is necessary to work around a bug in the Shiny/Leaflet
   # integration; without it, the addCircle commands arrive in the browser
   # before the map is created.
   session$onFlushed(once=TRUE, function() {
     paintObs <- observe({
-
-      scores <- .impacted_scores()
-
+      dt <- .impacted_scores()
+      i <- dt$FIPS
       map$clearShapes()
-      features <- CA_tracts[scores$FIPS,]
-
       # Bug in Shiny causes this to error out when user closes browser
       # before we get here
       try({
-
-        xs <- xapply(features@polygons, coord_getter(1))
-        ys <- xapply(features@polygons, coord_getter(2))
-        xy_range <- as.vector(t(bbox(features)))
-        ids <- xapply(features@polygons, function (obj) rep(obj@ID, length(obj@Polygons)))
-        multipoly <- list(x = xs, y = ys, range = xy_range, names = ids)
-
-        multipoly$colors <- color_ramp(scores$Range)
-        class(multipoly) <- "map"
-
-        map$addPolygon(multipoly$y, multipoly$x, layerId = seq_along(multipoly$names),
-                       options = lapply(multipoly$colors, function(x) list(fillColor = x)),
-                       list(fill=TRUE, fillOpacity=0.5, stroke=TRUE, opacity=1, color="#000000", weight=0.1))
-
+        x <- unname(unlist(poly_x[i]))
+        y <-unname(unlist(poly_y[i]))
+        ids <- unlist(poly_id[i])
+        col <- color_ramp(dt$Range)
+        map$addPolygon(y, x,
+                       layerId = seq(1, length(na.omit(x))), #seq_along(ids),
+                       options = lapply(col, function(x) list(fillColor = x)),
+                       defaultOptions = defaultOptions)
       })
-      #}
     })
 
     # TIL this is necessary in order to prevent the observer from
