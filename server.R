@@ -31,13 +31,14 @@ shinyServer(function(input, output, session) {
         x <- unname(unlist(poly_x[i]))
         y <- unname(unlist(poly_y[i]))
 
+        ids <- unlist(poly_id[i])
+        col <- color_ramp(dt$Range)
+
         setProgress(detail = "Rendering map ...")
         map$clearShapes()
         # Bug in Shiny causes this to error out when user closes browser
         # before we get here
         try({
-          ids <- unlist(poly_id[i])
-          col <- color_ramp(dt$Range)
           map$addPolygon(y, x,
                          layerId = seq(1, length(na.omit(x))), #seq_along(ids),
                          options = lapply(col, function(x) list(fillColor = x)),
@@ -121,7 +122,7 @@ shinyServer(function(input, output, session) {
             mutate(Rank = rank(-Value) + 1, Frac = Rank / n()) %>%
             ungroup() %>%
             group_by(FIPS) %>%
-            summarise(Score = sum(-log(Frac))) %>%
+            dplyr::summarise(Score = sum(-log(Frac))) %>%
             mutate(Percentile = 100 * normalize(rank(Score)),
                    Range = cut_quantile(Score, n=20))
         }
