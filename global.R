@@ -8,6 +8,9 @@ suppressPackageStartupMessages({
   library(rgeos)
 })
 
+# Affects precision of polygon coordinates
+options(shiny.json.digits = 8)
+
 data(CES2, package = "CalEnviroScreen")
 data(CES2_metadata, package = "CalEnviroScreen")
 data(California, package = "CalEnviroScreen")
@@ -56,7 +59,14 @@ poly_x <- setNames(lapply(CA_tracts@polygons, coord_getter(1)), row.names(CA_tra
 poly_y <- setNames(lapply(CA_tracts@polygons, coord_getter(2)), row.names(CA_tracts))
 poly_id <- setNames(lapply(CA_tracts@polygons, function (obj) rep(obj@ID, length(obj@Polygons))), row.names(CA_tracts))
 
-defaultOptions <- list(fill=TRUE, fillOpacity=0.5, stroke=TRUE, opacity=1, color="#000000", weight=0.1)
+defaultOptions <- list(
+  #opacity = 1,
+  #color = "#000000",
+  #weight = 0.1,
+  #fill = TRUE,
+  fillOpacity = 0.5,
+  stroke = FALSE
+)
 
 color_ramp <- function (x, pal = "RdYlGn") {
   palette <- colorRampPalette(rev(brewer.pal(9, pal)))
