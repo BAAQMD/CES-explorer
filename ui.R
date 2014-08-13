@@ -62,7 +62,7 @@ shinyUI(
 
           tags$div(
             id="cite",
-            'Data: ', tags$a('CalEnviroScreen 2.0', href="http://oehha.ca.gov/ej/ces2.html"), '| Code: ', tags$a('Superzip', href="https://github.com/jcheng5/superzip")
+            'Based on ', tags$a('CalEnviroScreen 2.0', href="http://oehha.ca.gov/ej/ces2.html"), ' | ', tags$a('source code', href="https://github.com/baaqmd/CES-explorer"), ' | ', tags$a('inspiration', href="https://github.com/jcheng5/superzip")
           )
       )
     ),
