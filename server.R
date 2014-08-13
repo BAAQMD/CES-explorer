@@ -202,4 +202,38 @@ shinyServer(function(input, output, session) {
   output$data_tbl <- renderDataTable(inner_join(pctl_tbl, .score_tbl(), by = "FIPS"), options = list(bSortClasses=TRUE, iDisplayLength=10))
 
   output$subscore_tbl <- renderDataTable(.subscore_tbl())
+
+  output$download_csv <- downloadHandler(
+    filename = function () {
+      return('CES-explorer.csv')
+    },
+    content = function (file) {
+      write.csv(.score_tbl(), file, row.names = FALSE)
+    }
+  )
+
+  output$download_shp <- downloadHandler(
+    filename = function () {
+      return("CES-explorer.zip")
+    },
+    content = function (file) {
+      dsn <- file.path(tempdir(), "CES-explorer")
+      dir.create(dsn)
+      df <- as.data.frame(.score_tbl() %>% select(FIPS, Score, Range))
+      df <- mutate(df, Range = as.character(Range))
+      row.names(df) <- df$FIPS
+      spobj <- suppressWarnings(merge(CA_tracts, df))
+      row.names(spobj) <- spobj$FIPS
+      writeOGR(spobj, dsn, layer = "scores", driver = "ESRI Shapefile", overwrite_layer = TRUE)
+      old_wd <- getwd()
+      setwd(dsn)
+      zip(zipfile = "CES-explorer.zip", files = dir(dsn))
+      setwd(old_wd)
+      file.copy(file.path(dsn, "CES-explorer.zip"), file)
+      file.remove(dir(dsn, full.names = TRUE))
+      file.remove(dsn)
+
+    }
+  )
+
 })

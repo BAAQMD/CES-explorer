@@ -69,6 +69,11 @@ shinyUI(
 
     tabPanel(
       "Data explorer",
+      wellPanel(
+        "Download this data: ",
+        downloadButton('download_csv', 'CSV'),
+        downloadButton('download_shp', 'Shapefile')
+      ),
       dataTableOutput("data_tbl")
     ),
 
