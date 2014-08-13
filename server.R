@@ -122,7 +122,7 @@ shinyServer(function(input, output, session) {
             mutate(Rank = rank(-Value) + 1, Frac = Rank / n()) %>%
             ungroup() %>%
             group_by(FIPS) %>%
-            dplyr::summarise(Score = sum(-log(Frac))) %>%
+            dplyr::summarise(Score = mean(-log(Frac))) %>%
             mutate(Percentile = 100 * normalize(rank(Score)),
                    Range = cut_quantile(Score, n=20))
         }
