@@ -223,7 +223,7 @@ shinyServer(function(input, output, session) {
       df <- mutate(df, Range = as.character(Range))
       row.names(df) <- df$FIPS
       spobj <- suppressWarnings(merge(CA_tracts, df))
-      row.names(spobj) <- spobj$FIPS
+      #row.names(spobj) <- spobj$FIPS
       writeOGR(spobj, dsn, layer = "scores", driver = "ESRI Shapefile", overwrite_layer = TRUE)
       old_wd <- getwd()
       setwd(dsn)
