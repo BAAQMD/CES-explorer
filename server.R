@@ -11,6 +11,8 @@ suppressPackageStartupMessages({
 # Define server logic
 ###############################################################################
 
+msg <- function (...) if (FALSE) message(...)
+
 shinyServer(function(input, output, session) {
 
   output$map <- reactive(TRUE)
@@ -53,103 +55,143 @@ shinyServer(function(input, output, session) {
   })
 
   .region_boundary <- reactive({
+    msg(".region_boundary()")
     region <- CA_regions[[input$region_name]]
     region$boundary
   })
 
   .region_FIPS <- reactive({
-    #subset(CA_tracts, Region == input$region_name)
+    msg(".region_FIPS()")
     CA_regions[[input$region_name]]$FIPS
   })
 
   .selected_variables <- reactive({
+    msg(".selected_variables()")
     c(input$pollution_vars, input$popchar_vars)
   })
 
   .pollution_weights <- reactive({
+    msg(".pollution_weights()")
     c(Ozone=input$Ozone, PM25=input$PM25, DieselPM=input$DieselPM, DrinkWat=input$DrinkWat, PestUse=input$PestUse, ToxRel=input$ToxRel, Traffic=input$Traffic,
       Cleanup=input$Cleanup, GndWat=input$GndWat, HazWaste=input$HazWaste, ImpWat=input$ImpWat, SolWaste=input$SolWaste)
   })
 
   .popchar_weights <- reactive({
+    msg(".popchar_weights()")
     c(Age=input$Age, Asthma=input$Asthma, LBW=input$LBW, Edu=input$Edu, LingIso=input$LingIso, Poverty=input$Poverty, Unemp=input$Unemp)
   })
 
   .weight_tbl <- reactive({
+    msg(".weight_tbl()")
     w <- c(.pollution_weights(), .popchar_weights())
-    as.tbl(data.frame(Variable = names(w), Weight = w))
-  })
-
-  #.meta_tbl <- reactive({
-  #  inner_join(group_tbl, .weight_tbl(), by = "Variable")
-  #})
+    msg("w is: ", dput(w))
+    msg("names(w) is: ", dput(names(w)))
+    result <- as.tbl(data.frame(Variable = names(w), Weight = w))
+    return(result)
+    })
 
   .subscore_tbl <- reactive({
+    msg("entering .subscore_tbl()")
+
     if (length(.selected_variables()) == 0) {
-      as.tbl(data.frame(FIPS=character(0), Pollution=numeric(0), PopChar=numeric(0)))
+      subscores <- as.tbl(data.frame(FIPS=character(0), Pollution=numeric(0), PopChar=numeric(0)))
     } else {
       min_obs <- Reduce(min, c(4, length(input$pollution_vars), length(input$popchar_vars)))
-      CES2_tbl %>%
+      subscores <- CES2_tbl %>%
         inner_join(.weight_tbl(), by = "Variable") %>%
         filter(Variable %in% .selected_variables()) %>%
         group_by(FIPS, Group) %>%
-        compute_CES2_subscores(min_obs = min_obs) %>%
-        spread(Group, Subscore) %>%
-        arrange(desc(FIPS))
+        compute_CES2_subscores(min_obs = min_obs)
     }
+
+    round.tbl <- function (.data, digits) {
+      f <- function (x) round(x, digits = digits)
+      .data %>% mutate_each(funs(f), -FIPS)
+    }
+
+    published_subscores <- CES2_scores %>%
+      select(FIPS, Pollution, PopChar) %>%
+      arrange(desc(FIPS))
+
+    require(testthat)
+
+    expect_equal(
+      subscores %>% round(digits = 8),
+      published_subscores %>% round(digits = 8))
+
+    msg("exiting .subscore_tbl()")
+    return(subscores)
   })
 
   .score_tbl <- reactive({
-      if (input$method == "CES 2.0") {
-        subscores <- .subscore_tbl()
-
-        if (is.null(subscores$PopChar)) {
-          subscores$PopChar <- 1
-        } else {
-          if (is.null(subscores$Pollution))
-            subscores$Pollution <- 1
-        }
-        scores <- subscores %>% compute_CES2_scores()
+    msg(".score_tbl()")
+    if (input$method == "CES 2.0") {
+      subscores <- .subscore_tbl()
+      if (is.null(subscores$PopChar)) {
+        subscores$PopChar <- 1
       } else {
-        cut_quantile <- function (x, ...) {
-          q <- quantile(x, seq(0, 1, len=21))
-          cut(x, breaks = q, labels = names(q)[-1])
-        }
-        summarise_rank_product <- function (.data) {
-          .data %>%
-            filter(!is.na(Value)) %>%
-            group_by(Variable) %>%
-            mutate(Rank = rank(-Value) + 1, Frac = Rank / n()) %>%
-            ungroup() %>%
-            group_by(FIPS) %>%
-            dplyr::summarise(Score = mean(-log(Frac))) %>%
-            mutate(Percentile = 100 * normalize(rank(Score)),
-                   Range = cut_quantile(Score, n=20))
-        }
-        scores <- CES2_data %>%
-          gather(Variable, Value, -FIPS) %>%
-          filter(Variable %in% .selected_variables()) %>%
-          summarise_rank_product()
+        if (is.null(subscores$Pollution))
+          subscores$Pollution <- 1
       }
-      scores %>% arrange(desc(Score)) %>% with_region()
+      scores <- subscores %>% compute_CES2_scores()
+    } else {
+      cut_quantile <- function (x, ...) {
+        q <- quantile(x, seq(0, 1, len=21))
+        cut(x, breaks = q, labels = names(q)[-1])
+      }
+      summarise_rank_product <- function (.data) {
+        .data %>%
+          filter(!is.na(Value)) %>%
+          group_by(Variable) %>%
+          mutate(Rank = rank(-Value) + 1, Frac = Rank / n()) %>%
+          ungroup() %>%
+          group_by(FIPS) %>%
+          dplyr::summarise(Score = mean(-log(Frac))) %>%
+          mutate(Percentile = 100 * normalize(rank(Score)),
+                 Range = cut_quantile(Score, n=20))
+      }
+      scores <- CES2_data %>%
+        gather(Variable, Value, -FIPS) %>%
+        filter(Variable %in% .selected_variables()) %>%
+        summarise_rank_product()
+    }
+    scores %>% arrange(desc(Score)) %>% with_region()
   })
 
   .impacted_percentile <- reactive({
+    msg(".impacted_percentile()")
     100 - extract_numeric(input$impacted_percentile) # reverse the scale
   })
 
-  .pollution_maximum <- reactive(with(.score_tbl(), max(Pollution, na.rm=TRUE)))
-  .popchar_maximum <- reactive(with(.score_tbl(), max(PopChar, na.rm=TRUE)))
-  .score_cutoff <- reactive(with(.score_tbl(), quantile(Score, .impacted_percentile() / 100, na.rm=TRUE)))
-  .popchar_intercept <- reactive(.score_cutoff() / .pollution_maximum())
+  .pollution_maximum <- reactive({
+    msg(".pollution_maximum()")
+    with(.score_tbl(), max(Pollution, na.rm=TRUE))
+  })
+
+  .popchar_maximum <- reactive({
+    msg(".popchar_maximum()")
+    with(.score_tbl(), max(PopChar, na.rm=TRUE))
+    })
+
+  .score_cutoff <- reactive({
+    msg(".score_cutoff()")
+    with(.score_tbl(), quantile(Score, .impacted_percentile() / 100, na.rm=TRUE))
+    })
+
+  .popchar_intercept <- reactive({
+    msg(".popchar_intercept()")
+    .score_cutoff() / .pollution_maximum()
+    })
 
   .tally <- reactive({
+    msg(".tally()")
     .score_tbl() %>%
       group_by(Region) %>%
       dplyr::summarise(Tracts=n(), Yes=sum(Percentile > .impacted_percentile()), No=Tracts-Yes)
   })
 
   .scatterplot <- reactive({
+    msg(".scatterplot()")
     fig_tbl <- .score_tbl() %>% mutate(Sampled = as.logical(rbinom(n(), 1, prob = input$SampleTracts / 100)))
     cutoff_function <- function (x) {
       ifelse(x < .popchar_intercept() | x > .popchar_maximum(), NA, .score_cutoff() / x)
@@ -187,10 +229,12 @@ shinyServer(function(input, output, session) {
   #})
 
   .impacted_scores <- reactive({
+    msg(".impacted_scores()")
     .score_tbl() %>% filter(Percentile > .impacted_percentile())
   })
 
   .impacted_FIPS <- reactive({
+    msg(".impacted_FIPS()")
     .impacted_scores()$FIPS
   })
 
