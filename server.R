@@ -104,21 +104,6 @@ shinyServer(function(input, output, session) {
         compute_CES2_subscores(min_obs = min_obs)
     }
 
-    round.tbl <- function (.data, digits) {
-      f <- function (x) round(x, digits = digits)
-      .data %>% mutate_each(funs(f), -FIPS)
-    }
-
-    published_subscores <- CES2_scores %>%
-      select(FIPS, Pollution, PopChar) %>%
-      arrange(desc(FIPS))
-
-    require(testthat)
-
-    expect_equal(
-      subscores %>% round(digits = 8),
-      published_subscores %>% round(digits = 8))
-
     msg("exiting .subscore_tbl()")
     return(subscores)
   })
