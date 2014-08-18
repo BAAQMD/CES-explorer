@@ -6,12 +6,21 @@ data(CES2, package = "CalEnviroScreen")
 data(CES2_metadata, package = "CalEnviroScreen")
 
 weightInput <- function (inputId, label=paste0(inputId, ":"), value=1.0, ...) {
-  sliderInput(inputId, label, value=value, min=0, max=1, step=0.1, ...)
+  sliderInput(inputId, label, value=value, min=0, max=2, step=0.25, ...)
 }
 
 multiSelectInput <- function (inputId, label, choices, ...) {
   selectInput(inputId, label, choices, selected=choices, multiple=TRUE, ...)
 }
+
+checkboxInputInline <- function (inputId, label, value = FALSE) {
+  inputTag <- tags$input(id = inputId, type = "checkbox")
+  if (!is.null(value) && value)
+    inputTag$attribs$checked <- "checked"
+  div(style = "display:inline-block; vertical-align:middle; padding-left:1em",
+      tags$label(class = "checkbox", `for` = inputId, inputTag, tags$span(label)))
+}
+
 
 REGION_NAMES <- c("San Joaquin", "South Coast", "Bay Area", "Other")
 
@@ -70,9 +79,10 @@ shinyUI(
     tabPanel(
       "Data explorer",
       wellPanel(
-        "Download this data: ",
+        div("Download this data: ", style="display:inline-block; padding-right:1em; vertical-align:middle"),
         downloadButton('download_csv', 'CSV'),
-        downloadButton('download_shp', 'Shapefile')
+        downloadButton('download_shp', 'Shapefile'),
+        checkboxInputInline("show_percentiles", "Include percentiles as well as scores", value = FALSE)
       ),
       dataTableOutput("data_tbl")
     ),

@@ -243,7 +243,12 @@ shinyServer(function(input, output, session) {
   output$barchart <- renderPlot(show(.barchart()))
 
   output$pctl_tbl <- renderDataTable(pctl_tbl, options = list(bSortClasses=TRUE, iDisplayLength=10))
-  output$data_tbl <- renderDataTable(inner_join(pctl_tbl, .score_tbl(), by = "FIPS"), options = list(bSortClasses=TRUE, iDisplayLength=10))
+  output$data_tbl <- renderDataTable(
+    if (input$show_percentiles) {
+      inner_join(pctl_tbl, .score_tbl(), by = "FIPS")
+    } else {
+      .score_tbl()
+    }, options = list(bSortClasses=TRUE, iDisplayLength=10))
 
   output$subscore_tbl <- renderDataTable(.subscore_tbl())
 
