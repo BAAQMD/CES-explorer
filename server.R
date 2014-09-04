@@ -136,9 +136,11 @@ shinyServer(function(input, output, session) {
     } else if (input$method == "Product of ranks") {
       #scores <- .subscore_tbl() %>%
       #  left_join(.selected_data() %>% mutate(Weight = 1.0) %>% calc_logRP_scores(), by = "FIPS") %>%
-      scores <- .selected_data() %>% mutate(Weight = 1.0) %>% calc_logRP_scores() %>%
-        mutate(Score = `-log(Score)`) %>%
-        mutate(Percentile = 100 * normalize(rank(Score)),
+      scores <- .selected_data() %>%
+        mutate(Weight = 1.0) %>%
+        calc_logRP_scores() %>%
+        mutate(Score = `-log(Score)`,
+               Percentile = 100 * normalize(rank(Score)),
                Range = cut_quantile(Score, n=20))
     }
     msg("nrow(scores) is:", nrow(scores))
@@ -231,11 +233,14 @@ shinyServer(function(input, output, session) {
 
   output$pctl_tbl <- renderDataTable(pctl_tbl, options = list(bSortClasses=TRUE, iDisplayLength=10))
   output$data_tbl <- renderDataTable({
-    if (input$include_values) {
-      inner_join(CES2_data, .score_tbl(), by = "FIPS")
-    } else {
-      .score_tbl()
+    scores <- .score_tbl()
+    if (input$method == "Product of ranks") {
+      scores <- .subscore_tbl() %>% left_join(scores %>% select(-Score, -N), by = "FIPS") # give -log(Score) instead
     }
+    if (input$include_values) {
+      scores <- CES2_data %>% left_join(scores, by = "FIPS")
+    }
+    scores
   }, options = list(bSortClasses=TRUE, iDisplayLength=10))
 
   output$subscore_tbl <- renderDataTable(.subscore_tbl())

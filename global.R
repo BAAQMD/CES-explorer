@@ -105,7 +105,7 @@ calc_logRP_scores <- function (.data) {
     group_by(Variable) %>%
     mutate(Rank = rank(-Value, ties.method="min"), Frac = Rank / n()) %>%
     group_by(FIPS) %>%
-    summarise(N = sum(!is.na(Frac)), `-log(Score)` = weighted.mean(-log(Frac), Weight), na.rm=TRUE) %>%
+    summarise(N = sum(!is.na(Frac)), `-log(Score)` = weighted.mean(-log(Frac), Weight, na.rm=TRUE)) %>%
     #summarise(N = n(), `-log(Score)` = sum(-log(Frac) * Weight)) %>%
     filter(N > max(N, na.rm=TRUE) * 0.75)
 
