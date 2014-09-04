@@ -21,7 +21,6 @@ checkboxInputInline <- function (inputId, label, value = FALSE) {
       tags$label(class = "checkbox", `for` = inputId, inputTag, tags$span(label)))
 }
 
-
 REGION_NAMES <- c("San Joaquin", "South Coast", "Bay Area", "Other")
 
 shinyUI(
@@ -59,10 +58,11 @@ shinyUI(
 
             h3("Model Settings"),
 
-            selectInput("method", "Methodology:", choices = c("CES 2.0", "Rank product"), selected = "CES 2.0"),
-            multiSelectInput("pollution_vars", "Pollution burden:", choices = unname(CES2_POLLUTION_VARS)),
-            multiSelectInput("popchar_vars", "Population characteristics:", choices = unname(CES2_POPCHAR_VARS)),
-            selectInput("impacted_percentile", "Impacted (% statewide):",
+            selectInput("method", "Methodology:", choices = c("CES 2.0", "Product of ranks"), selected = "CES 2.0"),
+            #multiSelectInput("pollution_vars", "Pollution burden:", choices = unname(CES2_POLLUTION_VARS)),
+            #multiSelectInput("popchar_vars", "Population characteristics:", choices = unname(CES2_POPCHAR_VARS)),
+            multiSelectInput("selected_vars", "Indicators:", choices = unname(c(CES2_POLLUTION_VARS, CES2_POPCHAR_VARS))),
+            selectInput("impacted_percentile", "Threshold (% statewide):",
                         choices = c( "5 %" =  5, "10 %" = 10, "15 %" = 15,
                                      "20 %" = 20, "25 %" = 25, "30 %" = 30,
                                      "35 %" = 35, "40 %" = 40, "45 %" = 45, "50 %" = 50),
