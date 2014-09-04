@@ -142,7 +142,7 @@ shinyServer(function(input, output, session) {
                Range = cut_quantile(Score, n=20))
     }
     msg("nrow(scores) is:", nrow(scores))
-    return(scores %>% arrange(desc(Score)) %>% with_region())
+    return(scores %>% arrange(desc(Score))) #%>% with_region())
   })
 
   .impacted_percentile <- reactive({
@@ -231,9 +231,10 @@ shinyServer(function(input, output, session) {
 
   output$pctl_tbl <- renderDataTable(pctl_tbl, options = list(bSortClasses=TRUE, iDisplayLength=10))
   output$data_tbl <- renderDataTable({
-    score_tbl <- .score_tbl()
-    if (input$show_percentiles) {
-      score_tbl <- inner_join(pctl_tbl, score_tbl, by = "FIPS")
+    if (input$include_values) {
+      inner_join(CES2_data, .score_tbl(), by = "FIPS")
+    } else {
+      .score_tbl()
     }
   }, options = list(bSortClasses=TRUE, iDisplayLength=10))
 

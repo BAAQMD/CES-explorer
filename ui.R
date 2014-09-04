@@ -82,7 +82,7 @@ shinyUI(
         div("Download this data: ", style="display:inline-block; padding-right:1em; vertical-align:middle"),
         downloadButton('download_csv', 'CSV'),
         downloadButton('download_shp', 'Shapefile'),
-        checkboxInputInline("show_percentiles", "Include percentiles as well as scores", value = FALSE)
+        checkboxInputInline("include_values", "Include indicator values", value = FALSE)
       ),
       dataTableOutput("data_tbl")
     ),
