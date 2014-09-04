@@ -8,8 +8,19 @@ suppressPackageStartupMessages({
   library(rgeos)
 })
 
+msg <- function (...) if (FALSE) message(...)
+
 options(shiny.json.digits = 8) # Affects precision of polygon coordinates
 options(digits = 3)
+
+Q <- function (x, ..., na.rm = TRUE) {
+  quantile(x, ..., na.rm = na.rm)
+}
+
+cut_quantile <- function (x, n = 20, ..., na.rm = TRUE) {
+  q <- quantile(x, seq(0, 1, len=n+1), na.rm = na.rm)
+  cut(x, breaks = q, labels = names(q)[-length(q)], include.lowest = TRUE, ordered_result = TRUE, na.rm = na.rm)
+}
 
 data(CES2, package = "CalEnviroScreen")
 data(CES2_metadata, package = "CalEnviroScreen")
@@ -68,7 +79,51 @@ color_ramp <- function (x, pal = "RdYlGn") {
 group_tbl <- as.tbl(data.frame(Variable = CES2_VARS)) %>%
     mutate(Group = factor(ifelse(Variable %in% CES2_POPCHAR_VARS, "PopChar", "Pollution")))
 
-pctl_tbl <- CES2_pctls
-CES2_tbl <- pctl_tbl %>%
-  gather(Variable, Pctl, -FIPS) %>%
+#pctl_tbl <- CES2_pctls
+#CES2_tbl <- pctl_tbl %>%
+#  gather(Variable, Pctl, -FIPS) %>%
+#  inner_join(group_tbl, by = "Variable")
+
+# Relevel based on correlations with PopChar and Pollution, respectively
+SORTED_POPCHAR_VARS <- rev(c("Edu", "Poverty", "Asthma", "Unemp", "LingIso", "LBW", "Age"))
+SORTED_POLLUTION_VARS <- c("PM25", "ToxRel", "DieselPM", "Traffic", "DrinkWat", "Ozone", "PestUse", "HazWaste", "Cleanup", "GndWat", "SolWaste", "ImpWat")
+CES2_VARS <- c(SORTED_POLLUTION_VARS, SORTED_POPCHAR_VARS)
+
+CES2_tbl <- inner_join(
+  CES2_data %>% gather(Variable, Value, -FIPS),
+  CES2_pctls %>% gather(Variable, Pctl, -FIPS),
+  by = c("FIPS", "Variable")) %>%
+  mutate(Variable = factor(Variable, levels = c(SORTED_POLLUTION_VARS, SORTED_POPCHAR_VARS)),
+         Rank = comp_rank(Value),
+         Percentile = pctl(Value)) %>%
   inner_join(group_tbl, by = "Variable")
+
+calc_logRP_scores <- function (.data) {
+
+  .data %>%
+    filter(!is.na(Value)) %>%
+    group_by(Variable) %>%
+    mutate(Rank = rank(-Value, ties.method="min"), Frac = Rank / n()) %>%
+    group_by(FIPS) %>%
+    summarise(N = sum(!is.na(Frac)), `-log(Score)` = weighted.mean(-log(Frac), Weight), na.rm=TRUE) %>%
+    #summarise(N = n(), `-log(Score)` = sum(-log(Frac) * Weight)) %>%
+    filter(N > max(N, na.rm=TRUE) * 0.75)
+
+}
+
+calc_logRP_subscores <- function (.data) {
+
+  pollution_tbl <- .data %>%
+    filter(Variable %in% CES2_POLLUTION_VARS) %>%
+    calc_logRP_scores() %>%
+    filter(N >= floor(max(N, na.rm=TRUE) * 0.5)) %>%
+    select(FIPS, `N(Pollution)` = N, `-log(Pollution)` = `-log(Score)`)
+
+  popchar_tbl <- .data %>%
+    filter(Variable %in% CES2_POPCHAR_VARS) %>%
+    calc_logRP_scores() %>%
+    filter(N >= floor(max(N, na.rm=TRUE) * 0.5)) %>%
+    select(FIPS, `N(PopChar)` = N, `-log(PopChar)` = `-log(Score)`)
+
+  left_join(pollution_tbl, popchar_tbl, by = "FIPS")
+}
