@@ -105,9 +105,8 @@ shinyServer(function(input, output, session) {
     } else {
       min_obs <- floor(0.25 * length(.selected_variables()))
       if (input$method == "CES 2.0") {
-        #min_obs <- Reduce(min, c(4, length(input$pollution_vars), length(input$popchar_vars)))
-        subscores <- .selected_data() %>%
-          mutate(Weight = 1.0) %>% compute_CES2_subscores(min_obs = min_obs)
+        min_obs <- Reduce(min, c(4, length(input$pollution_vars), length(input$popchar_vars)))
+        subscores <- .selected_data() %>% compute_CES2_subscores(min_obs = min_obs)
         if (is.null(subscores$PopChar)) {
           subscores$PopChar <- 1.0
         } else {
